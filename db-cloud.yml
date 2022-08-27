@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: This template creates a MYSQL relational database
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Exported VPC"
+        Parameters: 
+          - VpcStack2
+    
+      - Label:
+          default: "DB Parameters"
+        Parameters: 
+          - DBInstanceID
+          - DBName
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBUsername
+          - DBPassword
+  
+Parameters:
+  VpcStack2:
+    Description: The name of the vpc stack that exports values
+    Type: String
+
+  DBInstanceID:
+    Default: mysqldb
+    Description: My database instance
+    Type: String
+    MinLength: '1'
+    MaxLength: '60'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and must not end with a hyphen or contain two consecutive hyphens.
+
+  DBName:
+    Default: applicationDB
+    Description: My database name
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
+
+  DBInstanceClass:
+    Default: db.t3.micro
+    AllowedValues: 
+      - db.t3.micro
+      - db.t2.micro
+      - db.t1.micro
+    Description: DB instance class
+    Type: String
+    ConstraintDescription: Must select a valid DB instance type.
+
+  DBAllocatedStorage:
+    Default: 20
+    Description: The size of the database (GiB)
+    Type: Number
+    MinValue: 5
+    MaxValue: 1024
+    ConstraintDescription: must be between 20 and 1024 GiB.
+
+  DBUsername:
+    NoEcho: true
+    Description: Username for MySQL database access
+    Type: String
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+    Default: dbadmin
+
+  DBPassword:
+    NoEcho: true
+    Description: Password MySQL database access
+    Type: String
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+    Default: Test1234
+
+Resources:
+  MyDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      AvailabilityZone: !Select [0, !GetAZs ""] 
+      AllocatedStorage: !Ref DBAllocatedStorage
+      #DBClusterIdentifier: String
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !Ref DBInstanceID
+      DBName: !Ref DBName
+      VPCSecurityGroups: 
+        - Fn::ImportValue: !Sub ${VpcStack2}-DBSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeletionProtection: False
+      Engine: mysql
+      EngineVersion: 5.7.31
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      MultiAZ: False
+      Port: 3306
+      PubliclyAccessible: False
+      Tags: 
+        - Key: Name
+          Value: myDB
+  
+  # SELECT THE ENTIRE BLOCK AND USE CTRL+/ TO MULTICOMMENT
+  # DBSecurityGroup:
+  #   Type: AWS::RDS::DBSecurityGroup
+  #   Properties: 
+  #     DBSecurityGroupIngress: 
+  #       - Ingress
+  #     EC2VpcId: Fn::ImportValue: !Sub ${VpcStack2}-VpcId
+  #     GroupDescription: This is my db security group
+  #     Tags: 
+  #       - Key: Name
+  #         Value: My DB_S
+
+  # DBSecurityGroupIngress:
+  #   Type: AWS::RDS::DBSecurityGroupIngress
+  #   Properties: 
+  #     CIDRIP: String
+  #     DBSecurityGroupName: !Ref DBSecurityGroup
+  #     EC2SecurityGroupId: String
+  #     EC2SecurityGroupName: String
+  #     EC2SecurityGroupOwnerId: String
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: These are the subnets my database will be created in 
+      SubnetIds: 
+        - Fn::ImportValue: !Sub ${VpcStack2}-PrivateSubnet3
+        - Fn::ImportValue: !Sub ${VpcStack2}-PrivateSubnet4
+      Tags: 
+        - Key: Name
+          Value: DB_SubnetGroup
+
+#Outputs:
+  

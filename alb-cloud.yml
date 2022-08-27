@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: This is a template for an application load balancer
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      #- Label:
+        #  default: "ACM Certificate"
+        #Parameters: 
+         # - ACMCertificate
+    
+      - Label:
+          default: "Exported VPC"
+        Parameters: 
+          - VpcStack1
+    
+Parameters:
+  VpcStack1:
+    Description: The name of the vpc stack that exports values
+    Type: String
+
+  #ACMCertificate:
+  #  Description: The ARN of AWS certificate
+  #  Type: String
+
+Resources:
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Name: MyALB
+      SecurityGroups: 
+        - Fn::ImportValue: !Sub ${VpcStack1}-ALBSecurityGroup
+      Subnets: 
+        - Fn::ImportValue: !Sub ${VpcStack1}-PublicSubnet1
+        - Fn::ImportValue: !Sub ${VpcStack1}-PublicSubnet2
+      Tags: 
+        - Key: Name
+          Value: My Application Load Balancer
+      
+  #This creates a rule that redirects non-https traffic to https
+  ALBNoSSLListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup 
+       # - Type: redirect
+        #  RedirectConfig:
+         #   Host: "#{Host}"
+          #  Path: "/#{path}"
+           # Port: "443"
+            #Protocol: HTTPS
+            #StatusCode: HTTP_301 
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+
+  #This creates a listener rule to forward https traffic to the target group
+  #ALBSSLListener:
+  #  Type: AWS::ElasticLoadBalancingV2::Listener
+   # Properties: 
+    #  Certificates: 
+     #   - !Ref ACMCertificate
+     # DefaultActions: 
+      #  - Type: forward
+       #   TargetGroupArn: !Ref ALBTargetGroup
+      #LoadBalancerArn: !Ref ALB
+      #Port: 443
+      #Protocol: HTTPS
+
+  #ALBCertificate:
+    #Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    #Properties: 
+      #Certificates: 
+        #- !GettAtt ALBCertificate:Arn
+      #ListenerArn: !Ref ALBListener
+
+  #The ALB listener rules creates additional rules from the ones listed in alb listener
+  #ALBListenerRules:
+    #Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    #Properties: 
+      #Actions: 
+       # - Action
+      #Conditions: 
+       # - RuleCondition
+      #ListenerArn: !Ref ALBListener
+      #Priority: Integer
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      Matcher: 
+        HttpCode: 200,302
+      Name: WebServers
+      Port: 80
+      Protocol: HTTP
+      Tags: 
+        - Key: Name
+          Value: My Web Servers Target Group
+      UnhealthyThresholdCount: 5
+      VpcId: 
+        Fn::ImportValue: !Sub ${VpcStack1}-VPC
+
+#Outputs:
+Outputs:
+  ALBDnsName: 
+    Description: The Application Load Balanacer DNS Name
+    Value: !GetAtt ALB.DNSName 
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBDNSName"
+
+  ALBTargetGroup: 
+    Description: The Application Load Balanacer Target Group
+    Value: !Ref ALBTargetGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBTargetGroup"
+
+  ALBZoneId: 
+    Description: The Application Load Balanacer zone ID
+    Value: !GetAtt ALB.CanonicalHostedZoneID
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBZoneId"
