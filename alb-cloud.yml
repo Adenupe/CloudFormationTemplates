@@ -14,11 +14,35 @@ Metadata:
           default: "Exported VPC"
         Parameters: 
           - VpcStack1
+
+      - Label:
+          default: "Instance parameters"
+        Parameters: 
+          - InstanceType
+          - AmazonImageId
+          - KeyName
     
 Parameters:
   VpcStack1:
     Description: The name of the vpc stack that exports values
     Type: String
+
+  InstanceType:
+    Type: String
+    Description: It specifies the allowed and default instance type
+    AllowedValues:
+      - t1.micro
+      - t2.micro
+      - t3.micro
+    Default: t2.micro
+
+  AmazonImageId:
+    Type: String
+    Description: The Id of the Amazon Machine Image(AMI)
+
+  KeyName:
+    Type: 'AWS::EC2::KeyPair'
+    Description: The key pair used for ssh access into the instance
 
   #ACMCertificate:
   #  Description: The ARN of AWS certificate
@@ -87,6 +111,76 @@ Resources:
       #ListenerArn: !Ref ALBListener
       #Priority: Integer
 
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      AvailabilityZone: !Select [0, !GetAZs ""] 
+      ImageId: !Ref AmazonImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: 
+            - Fn::ImportValue: !Sub ${VpcStack3}-WebServersSecurityGroup
+          SubnetId: 
+            - Fn::ImportValue: !Sub ${VpcStack3}-PrivateSubnet1
+      PrivateDnsNameOptions: 
+          EnableResourceNameDnsARecord: True
+      PrivateIpAddress: !GetAtt EC2Instance.DNSName
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${VpcStack3}-WebServersSecurityGroup
+      SubnetId: 
+        - Fn::ImportValue: !Sub ${VpcStack3}-PrivateSubnet1
+      Tags: 
+        - Key: Name
+          Value: EC2-Instance
+      Tenancy: default
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash
+            sudo su
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd.service
+            echo "<h1> HELLO SERVER </h1>" > /var/www/html/index.html
+
+  EC2Instance2:
+    Type: AWS::EC2::Instance
+    Properties: 
+      AvailabilityZone: !Select [0, !GetAZs ""] 
+      ImageId: !Ref AmazonImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: 
+            - Fn::ImportValue: !Sub ${VpcStack3}-WebServersSecurityGroup
+          SubnetId: 
+            - Fn::ImportValue: !Sub ${VpcStack3}-PrivateSubnet2
+      PrivateDnsNameOptions: 
+          EnableResourceNameDnsARecord: True
+      PrivateIpAddress: !GetAtt EC2Instance.DNSName
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${VpcStack3}-WebServersSecurityGroup
+      SubnetId: 
+        - Fn::ImportValue: !Sub ${VpcStack3}-PrivateSubnet2
+      Tags: 
+        - Key: Name
+          Value: EC2-Instance2
+      Tenancy: default
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash
+            sudo su
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd.service
+            echo "<h1> HELLO SERVER </h1>" > /var/www/html/index.html
+
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties: 
@@ -95,6 +189,10 @@ Resources:
       Name: WebServers
       Port: 80
       Protocol: HTTP
+      Targets:
+          Id: 
+            - !Ref EC2Instance
+            - !Ref EC2Instance2
       Tags: 
         - Key: Name
           Value: My Web Servers Target Group
